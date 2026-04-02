@@ -10,10 +10,7 @@ class VectorIndex:
     def __init__(self):
         self.index = None
         self.case_ids = []
-
-    # =========================
     # Build FAISS index
-    # =========================
     def build_index(self, embeddings, case_ids):
 
         if not embeddings or not case_ids:
@@ -33,9 +30,7 @@ class VectorIndex:
 
         logging.info(f"FAISS index built with {self.index.ntotal} vectors")
 
-    # =========================
     # Search similar cases
-    # =========================
     def search(self, query_embedding, top_k=5):
 
         if self.index is None:
