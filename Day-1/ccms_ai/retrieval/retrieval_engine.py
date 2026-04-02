@@ -5,7 +5,7 @@ import logging
 from pymongo import MongoClient
 from sentence_transformers import SentenceTransformer
 from collections import Counter
-from vector_index import VectorIndex # FAISS index called from vector index
+from retrieval.vector_index import VectorIndex # FAISS index called from vector index
 
 from utils.config import (
     MONGO_URI,
