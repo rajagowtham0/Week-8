@@ -1,45 +1,40 @@
 # retrieval_engine.py
+
 import numpy as np
 import re
 import logging
 from pymongo import MongoClient
-from sentence_transformers import SentenceTransformer
 from collections import Counter
-from retrieval.vector_index import VectorIndex # FAISS index called from vector index
+from retrieval.vector_index import VectorIndex  # FAISS index
 
 from utils.config import (
     MONGO_URI,
     DATABASE_NAME,
     COLLECTION_NAME,
-    EMBEDDING_MODEL_NAME,
     TOP_N
 )
 
+# ✅ NEW IMPORT (IMPORTANT)
+from utils.embedding import generate_embedding
 
 
 # GLOBAL VARIABLES
-model = None
-vector_index = None 
+vector_index = None
 case_ids = []
 stored_cases = []
-embedding_cache = {}
 engine_initialized = False
 
 
 # INITIALIZATION
 def initialize_engine():
 
-    global model, vector_index, case_ids, stored_cases, engine_initialized
+    global vector_index, case_ids, stored_cases, engine_initialized
 
     if engine_initialized:
         logging.info("Retrieval engine already initialized.")
         return
 
     logging.info("Initializing retrieval engine...")
-
-    if model is None:
-        logging.info(f"Loading model: {EMBEDDING_MODEL_NAME}")
-        model = SentenceTransformer(EMBEDDING_MODEL_NAME)
 
     client = MongoClient(MONGO_URI)
     db = client[DATABASE_NAME]
@@ -60,7 +55,6 @@ def initialize_engine():
             case_ids.append(doc["case_id"])
             stored_cases.append(doc)
 
-    # REPLACED FAISS WITH VECTOR INDEX
     vector_index = VectorIndex()
     vector_index.build_index(embeddings, case_ids)
 
@@ -77,21 +71,6 @@ def preprocess_text(text):
     return text.strip()
 
 
-# EMBEDDING
-def generate_embedding(text):
-
-    global embedding_cache, model
-
-    if text in embedding_cache:
-        return embedding_cache[text]
-
-    embedding = model.encode(text, convert_to_numpy=True)
-
-    embedding_cache[text] = embedding
-
-    return embedding
-
-
 # RETRIEVAL
 def retrieve_similar_cases(text, top_k=TOP_N):
 
@@ -102,9 +81,18 @@ def retrieve_similar_cases(text, top_k=TOP_N):
 
     text = preprocess_text(text)
 
-    embedding = generate_embedding(text)
+    # ✅ USE UPDATED EMBEDDING PIPELINE
+    # Split back to symptoms + notes
+    if "." in text:
+        parts = text.split(".", 1)
+        symptoms = parts[0].strip()
+        doctor_notes = parts[1].strip()
+    else:
+        symptoms = text
+        doctor_notes = ""
 
-    # REPLACED FAISS SEARCH
+    embedding = generate_embedding(symptoms, doctor_notes)
+
     results = vector_index.search(embedding, top_k)
 
     return results
@@ -184,7 +172,7 @@ def generate_case_insight(similar_cases, query_text):
         4
     )
 
-    # EXISTING FALLBACK LOGIC 
+    # EXISTING FALLBACK LOGIC
     symptoms_output = []
 
     for case in filtered_cases:
