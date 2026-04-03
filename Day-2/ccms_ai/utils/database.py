@@ -8,8 +8,6 @@ from utils.config import MONGO_URI, DATABASE_NAME, COLLECTION_NAME, EMBEDDING_MO
 client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
 collection = db[COLLECTION_NAME]
-
-
 def fetch_all_cases():
     cases = list(collection.find({}, {"_id": 0}))
 
@@ -31,7 +29,6 @@ def fetch_all_cases():
                 model_mismatch_flags.append(True)
             else:
                 model_mismatch_flags.append(False)
-
     stored_embeddings = np.array(stored_embeddings, dtype=np.float32)
 
     return cases, stored_embeddings, model_mismatch_flags
