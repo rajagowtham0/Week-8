@@ -4,87 +4,109 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import logging
 import hashlib
+from pymongo import MongoClient
 
-from utils.config import EMBEDDING_MODEL_NAME
+from utils.config import (
+    EMBEDDING_MODEL_NAME,
+    MONGO_URI,
+    DATABASE_NAME,
+    COLLECTION_NAME
+)
+
+# MongoDB Connection
+client = MongoClient(MONGO_URI)
+collection = client[DATABASE_NAME][COLLECTION_NAME]
 
 # Embedding Cache
-
-# In-memory embedding cache
 embedding_cache = {}
 
-# Generate cache key
 def generate_cache_key(text: str) -> str:
-    # generate a unique key for the given text input
-
     normalized = text.lower().strip()
-    key = hashlib.sha256(normalized.encode()).hexdigest()
+    return hashlib.sha256(normalized.encode()).hexdigest()
 
-    return key
-
-# Get cached embedding
 def get_cached_embedding(text: str):
-
     key = generate_cache_key(text)
-
     return embedding_cache.get(key)
 
-# Store embedding in cache
 def store_embedding(text: str, embedding):
-
     key = generate_cache_key(text)
-
     embedding_cache[key] = embedding
-# Embedding Model
-# Global model instance
+
+# Model Loading
 _model = None
 
-
 def load_embedding_model():
-    # loading the sentence transformer model only once 
-
     global _model
-
     if _model is None:
         logging.info(f"Model loaded: {EMBEDDING_MODEL_NAME}")
         _model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-
     return _model
-# Generate embedding with cache support
 
-def generate_embedding(text: str) -> np.ndarray:
-    # generate embeddings for input text layer 
+# Generate Embedding 
+def generate_embedding(symptoms: str, doctor_notes: str) -> np.ndarray:
 
-    if not isinstance(text, str):
-        raise TypeError("Input must be a string.")
+    if not isinstance(symptoms, str) or not isinstance(doctor_notes, str):
+        raise TypeError("Inputs must be strings.")
 
-    # Check embedding cache
-    cached_embedding = get_cached_embedding(text)
+    combined_text = f"{symptoms}. {doctor_notes}"
 
-    if cached_embedding is not None:
+    # 1. Check cache
+    cached = get_cached_embedding(combined_text)
+    if cached is not None:
         logging.info("Embedding fetched from cache")
-        return cached_embedding
+        return cached
 
-    # Compute embedding
+    # 2. Check MongoDB
+    doc = collection.find_one({
+        "symptoms": symptoms,
+        "doctor_notes": doctor_notes
+    })
+
+    if doc and "embedding" in doc:
+        logging.info("Embedding fetched from MongoDB")
+
+        embedding = np.array(doc["embedding"], dtype=np.float32)
+        store_embedding(combined_text, embedding)
+        return embedding
+
+    # 3. Generate embedding
     model = load_embedding_model()
 
-    logging.info(f"Embedding version used: {EMBEDDING_MODEL_NAME}")
+    logging.info(f"Generating embedding using: {EMBEDDING_MODEL_NAME}")
 
     embedding = model.encode(
-        text,
+        combined_text,
         convert_to_numpy=True,
         show_progress_bar=False
     )
 
-    # Store embedding in cache
-    store_embedding(text, embedding)
+    # 4. Store in MongoDB 
+    collection.update_one(
+        {
+            "symptoms": symptoms,
+            "doctor_notes": doctor_notes
+        },
+        {
+            "$set": {
+                "symptoms": symptoms,
+                "doctor_notes": doctor_notes,
+                "embedding": embedding.tolist(),
+                "embedding_model": EMBEDDING_MODEL_NAME,
+                "embedding_version": EMBEDDING_MODEL_NAME
+            }
+        },
+        upsert=True
+    )
+
+    # 5. Store in cache
+    store_embedding(combined_text, embedding)
 
     return embedding
-# Combine symptoms and notes
 
+# Combine Text
 def combine_text(symptoms: str, doctor_notes: str) -> str:
-    # combining symptoms and doctor notes 
 
     if not isinstance(symptoms, str) or not isinstance(doctor_notes, str):
-        raise TypeError("Both symptoms and doctor_notes must be strings.")
+        raise TypeError("Both inputs must be strings.")
 
     return f"{symptoms}. {doctor_notes}"

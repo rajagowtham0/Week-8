@@ -1,3 +1,5 @@
+# database.py
+
 from pymongo import MongoClient
 import numpy as np
 from utils.config import MONGO_URI, DATABASE_NAME, COLLECTION_NAME, EMBEDDING_MODEL_NAME
@@ -30,6 +32,6 @@ def fetch_all_cases():
             else:
                 model_mismatch_flags.append(False)
 
-    stored_embeddings = np.array(stored_embeddings)
+    stored_embeddings = np.array(stored_embeddings, dtype=np.float32)
 
     return cases, stored_embeddings, model_mismatch_flags
