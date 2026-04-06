@@ -6,17 +6,13 @@ import logging
 from pymongo import MongoClient
 from collections import Counter
 from retrieval.vector_index import VectorIndex  # FAISS index
-
+from utils.embedding import generate_embedding
 from utils.config import (
     MONGO_URI,
     DATABASE_NAME,
     COLLECTION_NAME,
     TOP_N
 )
-
-# ✅ NEW IMPORT (IMPORTANT)
-from utils.embedding import generate_embedding
-
 
 # GLOBAL VARIABLES
 vector_index = None
@@ -59,6 +55,7 @@ def initialize_engine():
     vector_index.build_index(embeddings, case_ids)
 
     logging.info("Vector index built successfully")
+    logging.info(f"Total vectors indexed: {len(case_ids)}")  # ✅ Added
 
     engine_initialized = True
 
@@ -81,8 +78,7 @@ def retrieve_similar_cases(text, top_k=TOP_N):
 
     text = preprocess_text(text)
 
-    # ✅ USE UPDATED EMBEDDING PIPELINE
-    # Split back to symptoms + notes
+    # Split into symptoms + doctor_notes
     if "." in text:
         parts = text.split(".", 1)
         symptoms = parts[0].strip()
@@ -91,9 +87,13 @@ def retrieve_similar_cases(text, top_k=TOP_N):
         symptoms = text
         doctor_notes = ""
 
+    # Embedding 
     embedding = generate_embedding(symptoms, doctor_notes)
 
+    # FAISS search
     results = vector_index.search(embedding, top_k)
+
+    logging.info("FAISS top-K search executed")  
 
     return results
 
