@@ -1,3 +1,5 @@
+# app.py
+
 from fastapi import FastAPI, HTTPException
 import time
 import logging
@@ -7,7 +9,7 @@ import os
 from utils.models import CaseRequest, CaseResponse
 from utils.embedding import combine_text
 from utils.config import EMBEDDING_MODEL_NAME
-# Retrieval Engine (UPDATED)
+# Retrieval Engine
 from retrieval.retrieval_engine import initialize_engine, analyze_case
 
 logging.basicConfig(level=logging.INFO)
@@ -30,7 +32,6 @@ def load_data():
 
     logging.info(f"Embedding model: {EMBEDDING_MODEL_NAME}")
 
-    # Initialize Retrieval Engine (FAISS + data)
     try:
         initialize_engine()
         logging.info("Retrieval engine initialized successfully.")
@@ -44,7 +45,7 @@ def analyze_case_api(request: CaseRequest):
 
     global cache
 
-    start_time = time.time()
+    api_start_time = time.time()
 
     try:
         logging.info("Received API request")
@@ -66,27 +67,38 @@ def analyze_case_api(request: CaseRequest):
 
         cache_key = combined_text.lower().strip()
 
-        # API response cache
+        # Cache check
         if cache_key in cache:
             logging.info("API response fetched from cache")
+
+            api_response_time = round(time.time() - api_start_time, 4)
+            logging.info(f"[PERF] API Response Time (cache): {api_response_time} sec")
+
             return cache[cache_key]
 
-        # 🔥 SINGLE CALL (UPDATED)
+        # Measure Retrieval Time
+        retrieval_start_time = time.time()
+
         logging.info("Calling retrieval engine")
         insight_output = analyze_case(combined_text)
+
+        retrieval_time = round(time.time() - retrieval_start_time, 4)
+        logging.info(f"[PERF] Retrieval Time (FAISS): {retrieval_time} sec")
 
         logging.info("Insight generated successfully")
 
         # Store in cache
         cache[cache_key] = insight_output
 
-        response_time = round(time.time() - start_time, 4)
+        # Total API time
+        api_response_time = round(time.time() - api_start_time, 4)
 
+        # Memory usage
         process = psutil.Process(os.getpid())
         memory_usage = process.memory_info().rss / (1024 * 1024)
 
-        logging.info(f"Response time: {response_time} sec")
-        logging.info(f"Memory usage: {round(memory_usage,2)} MB")
+        logging.info(f"[PERF] API Total Response Time: {api_response_time} sec")
+        logging.info(f"[PERF] Memory usage: {round(memory_usage,2)} MB")
 
         return insight_output
 
