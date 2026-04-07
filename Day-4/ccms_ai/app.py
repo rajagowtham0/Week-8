@@ -10,7 +10,7 @@ from utils.models import CaseRequest, CaseResponse
 from utils.embedding import combine_text
 from utils.config import EMBEDDING_MODEL_NAME
 
-# Retrieval Engine (UPDATED)
+# Retrieval Engine 
 from retrieval.retrieval_engine import (
     initialize_engine,
     retrieve_similar_cases,
@@ -81,6 +81,9 @@ def analyze_case_api(request: CaseRequest):
 
         logging.info("Input combined successfully")
 
+        # DATA SIZE IN BYTES 
+        data_size_bytes = len(combined_text.encode("utf-8"))
+
         cache_key = combined_text.lower().strip()
 
         # Cache check
@@ -90,6 +93,7 @@ def analyze_case_api(request: CaseRequest):
             api_response_time = round(time.time() - api_start_time, 4)
 
             logging.info(f"[PERF] Dataset Size: {DATASET_SIZE}")
+            logging.info(f"[PERF] Data Size (bytes): {data_size_bytes}")
             logging.info(f"[PERF] Retrieval Time: 0.0 sec (cache)")
             logging.info(f"[PERF] API Total Response Time: {api_response_time} sec")
 
@@ -102,7 +106,7 @@ def analyze_case_api(request: CaseRequest):
 
         retrieval_time = round(time.time() - retrieval_start_time, 4)
 
-        # INSIGHT (separate from retrieval)
+        # INSIGHT 
         insight_output = generate_case_insight(similar_cases, combined_text)
 
         logging.info("Insight generated successfully")
@@ -118,7 +122,7 @@ def analyze_case_api(request: CaseRequest):
         memory_usage = process.memory_info().rss / (1024 * 1024)
 
         # PERFORMANCE LOGS
-        logging.info(f"[PERF] Dataset Size: {DATASET_SIZE}")
+        logging.info(f"[PERF] Data Size (bytes): {data_size_bytes}")
         logging.info(f"[PERF] Retrieval Time: {retrieval_time} sec")
         logging.info(f"[PERF] API Total Response Time: {api_response_time} sec")
         logging.info(f"[PERF] Memory Usage: {round(memory_usage,2)} MB")
