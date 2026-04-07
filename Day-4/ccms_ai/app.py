@@ -9,8 +9,14 @@ import os
 from utils.models import CaseRequest, CaseResponse
 from utils.embedding import combine_text
 from utils.config import EMBEDDING_MODEL_NAME
-# Retrieval Engine
-from retrieval.retrieval_engine import initialize_engine, analyze_case
+
+# Retrieval Engine (UPDATED)
+from retrieval.retrieval_engine import (
+    initialize_engine,
+    retrieve_similar_cases,
+    generate_case_insight,
+    case_ids
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,7 +31,7 @@ app = FastAPI(title="CCMS AI Similarity Engine")
 # API response cache
 cache = {}
 
-# ✅ NEW: dataset size tracker
+# Dataset size
 DATASET_SIZE = 0
 
 
@@ -41,11 +47,9 @@ def load_data():
         initialize_engine()
         logging.info("Retrieval engine initialized successfully.")
 
-        # ✅ Get dataset size (number of indexed cases)
-        from retrieval.retrieval_engine import case_ids
+        # Dataset size
         DATASET_SIZE = len(case_ids)
-
-        logging.info(f"[PERF] Dataset size: {DATASET_SIZE}")
+        logging.info(f"[PERF] Dataset Size: {DATASET_SIZE}")
 
     except Exception as e:
         logging.warning(f"Retrieval engine initialization failed: {e}")
@@ -91,13 +95,15 @@ def analyze_case_api(request: CaseRequest):
 
             return cache[cache_key]
 
-        # Measure Retrieval Time separately
+        # PURE RETRIEVAL TIME (FAISS ONLY)
         retrieval_start_time = time.time()
 
-        logging.info("Calling retrieval engine")
-        insight_output = analyze_case(combined_text)
+        similar_cases = retrieve_similar_cases(combined_text)
 
         retrieval_time = round(time.time() - retrieval_start_time, 4)
+
+        # INSIGHT (separate from retrieval)
+        insight_output = generate_case_insight(similar_cases, combined_text)
 
         logging.info("Insight generated successfully")
 
@@ -111,7 +117,7 @@ def analyze_case_api(request: CaseRequest):
         process = psutil.Process(os.getpid())
         memory_usage = process.memory_info().rss / (1024 * 1024)
 
-        # PERFORMANCE LOGS 
+        # PERFORMANCE LOGS
         logging.info(f"[PERF] Dataset Size: {DATASET_SIZE}")
         logging.info(f"[PERF] Retrieval Time: {retrieval_time} sec")
         logging.info(f"[PERF] API Total Response Time: {api_response_time} sec")
