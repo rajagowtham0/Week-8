@@ -49,7 +49,6 @@ def load_data():
 
         # Dataset size
         DATASET_SIZE = len(case_ids)
-        logging.info(f"[PERF] Dataset Size: {DATASET_SIZE}")
 
     except Exception as e:
         logging.warning(f"Retrieval engine initialization failed: {e}")
@@ -92,14 +91,14 @@ def analyze_case_api(request: CaseRequest):
 
             api_response_time = round(time.time() - api_start_time, 4)
 
-            logging.info(f"[PERF] Dataset Size: {DATASET_SIZE}")
             logging.info(f"[PERF] Data Size (bytes): {data_size_bytes}")
             logging.info(f"[PERF] Retrieval Time: 0.0 sec (cache)")
             logging.info(f"[PERF] API Total Response Time: {api_response_time} sec")
 
             return cache[cache_key]
 
-        # PURE RETRIEVAL TIME (FAISS ONLY)
+        # FAISS RETRIEVAL
+        logging.info("Performing FAISS retrieval...")
         retrieval_start_time = time.time()
 
         similar_cases = retrieve_similar_cases(combined_text)
@@ -125,7 +124,6 @@ def analyze_case_api(request: CaseRequest):
         logging.info(f"[PERF] Data Size (bytes): {data_size_bytes}")
         logging.info(f"[PERF] Retrieval Time: {retrieval_time} sec")
         logging.info(f"[PERF] API Total Response Time: {api_response_time} sec")
-        logging.info(f"[PERF] Memory Usage: {round(memory_usage,2)} MB")
 
         return insight_output
 
