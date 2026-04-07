@@ -25,16 +25,28 @@ app = FastAPI(title="CCMS AI Similarity Engine")
 # API response cache
 cache = {}
 
+# ✅ NEW: dataset size tracker
+DATASET_SIZE = 0
+
 
 # Startup Event
 @app.on_event("startup")
 def load_data():
+
+    global DATASET_SIZE
 
     logging.info(f"Embedding model: {EMBEDDING_MODEL_NAME}")
 
     try:
         initialize_engine()
         logging.info("Retrieval engine initialized successfully.")
+
+        # ✅ Get dataset size (number of indexed cases)
+        from retrieval.retrieval_engine import case_ids
+        DATASET_SIZE = len(case_ids)
+
+        logging.info(f"[PERF] Dataset size: {DATASET_SIZE}")
+
     except Exception as e:
         logging.warning(f"Retrieval engine initialization failed: {e}")
 
@@ -43,7 +55,7 @@ def load_data():
 @app.post("/analyze-case", response_model=CaseResponse)
 def analyze_case_api(request: CaseRequest):
 
-    global cache
+    global cache, DATASET_SIZE
 
     api_start_time = time.time()
 
@@ -72,18 +84,20 @@ def analyze_case_api(request: CaseRequest):
             logging.info("API response fetched from cache")
 
             api_response_time = round(time.time() - api_start_time, 4)
-            logging.info(f"[PERF] API Response Time (cache): {api_response_time} sec")
+
+            logging.info(f"[PERF] Dataset Size: {DATASET_SIZE}")
+            logging.info(f"[PERF] Retrieval Time: 0.0 sec (cache)")
+            logging.info(f"[PERF] API Total Response Time: {api_response_time} sec")
 
             return cache[cache_key]
 
-        # Measure Retrieval Time
+        # Measure Retrieval Time separately
         retrieval_start_time = time.time()
 
         logging.info("Calling retrieval engine")
         insight_output = analyze_case(combined_text)
 
         retrieval_time = round(time.time() - retrieval_start_time, 4)
-        logging.info(f"[PERF] Retrieval Time (FAISS): {retrieval_time} sec")
 
         logging.info("Insight generated successfully")
 
@@ -97,8 +111,11 @@ def analyze_case_api(request: CaseRequest):
         process = psutil.Process(os.getpid())
         memory_usage = process.memory_info().rss / (1024 * 1024)
 
+        # PERFORMANCE LOGS 
+        logging.info(f"[PERF] Dataset Size: {DATASET_SIZE}")
+        logging.info(f"[PERF] Retrieval Time: {retrieval_time} sec")
         logging.info(f"[PERF] API Total Response Time: {api_response_time} sec")
-        logging.info(f"[PERF] Memory usage: {round(memory_usage,2)} MB")
+        logging.info(f"[PERF] Memory Usage: {round(memory_usage,2)} MB")
 
         return insight_output
 
