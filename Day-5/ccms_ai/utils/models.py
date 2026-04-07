@@ -17,6 +17,6 @@ class SimilarCase(BaseModel):
 # Response schema
 class CaseResponse(BaseModel):
     similar_cases: list
-    symptoms: list
+    symptoms: str
     treatment: str
-    similarity_score: float
+    similarity_score: str
